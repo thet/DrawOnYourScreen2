@@ -27,19 +27,22 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
 import PangoCairo from 'gi://PangoCairo';
+import Cogl from 'gi://Cogl';
 
 import { CURATED_UUID as UUID } from './utils.js';
 
-export const StaticColor = {
-    WHITE: Clutter.Color.new(255, 255, 255, 255),
-    BLUE: Clutter.Color.new(0, 0, 255, 255),
-    TRANSPARENT: Clutter.Color.new(0, 0, 0, 0),
-    BLACK: Clutter.Color.new(0, 0, 0, 255),
-    GRAY: Clutter.Color.new(160, 160, 164, 255),
-    RED: Clutter.Color.new(255, 0, 0, 255)
-}
+const Color = Clutter.Color ?? Cogl.Color;
 
-export const Shape = { NONE: 0, LINE: 1, ELLIPSE: 2, RECTANGLE: 3, TEXT: 4, POLYGON: 5, POLYLINE: 6, IMAGE: 7 };
+export const StaticColor = {
+    WHITE: Color.from_string('#ffffff'),
+    BLUE: Color.from_string('#0000ff'),
+    TRANSPARENT: Color.from_string('#00000000'),
+    BLACK: Color.from_string('#000000'),
+    GRAY: Color.from_string('#a0a0a4'),
+    RED: Color.from_string('#ff0000')
+};
+
+export const Shape = { NONE: 0, LINE: 1, ELLIPSE: 2, RECTANGLE: 3, TEXT: 4, POLYGON: 5, POLYLINE: 6, IMAGE: 7, ARROW: 8 };
 export const TextAlignment = { LEFT: 0, CENTER: 1, RIGHT: 2 };
 export const Transformation = { TRANSLATION: 0, ROTATION: 1, SCALE_PRESERVE: 2, STRETCH: 3, REFLECTION: 4, INVERSION: 5, SMOOTH: 100 };
 
@@ -255,8 +258,7 @@ const _DrawingElement = GObject.registerClass({
             cr.moveTo(points[0][0], points[0][1]);
             for (let j = 1; j < points.length; j++) {
                 cr.lineTo(points[j][0], points[j][1]);
-            }
-            
+            }     
         } else if (shape == Shape.ELLIPSE && points.length >= 2) {
             let radius = Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]);
             let ratio = 1;
@@ -284,6 +286,21 @@ const _DrawingElement = GObject.registerClass({
             if (shape == Shape.POLYGON)
                 cr.closePath();
             
+        } else if (shape == Shape.ARROW && points.length >= 2) {
+            // Draw the main line
+            cr.moveTo(points[0][0], points[0][1]);
+            cr.lineTo(points[1][0], points[1][1]);
+            
+            // Draw arrowhead
+            let angle = Math.atan2(points[1][1] - points[0][1], points[1][0] - points[0][0]);
+            let arrowSize = this.line.lineWidth * 5; // Adjust this multiplier to change arrow size
+            
+            cr.moveTo(points[1][0], points[1][1]);
+            cr.lineTo(points[1][0] - arrowSize * Math.cos(angle - Math.PI/6),
+                    points[1][1] - arrowSize * Math.sin(angle - Math.PI/6));
+            cr.moveTo(points[1][0], points[1][1]);
+            cr.lineTo(points[1][0] - arrowSize * Math.cos(angle + Math.PI/6),
+                    points[1][1] - arrowSize * Math.sin(angle + Math.PI/6));
         }
     }
     
@@ -427,6 +444,17 @@ const _DrawingElement = GObject.registerClass({
                 row += ` ${points[i][0]},${points[i][1]}`;
             row += `"${transAttribute}/>`;
         
+        } else if (this.shape == Shape.ARROW && points.length >= 2) {
+            let angle = Math.atan2(points[1][1] - points[0][1], points[1][0] - points[0][0]);
+            let arrowSize = this.line.lineWidth * 5; // Should match the Cairo version
+            
+            row += `<path ${attributes} d="M${points[0][0]},${points[0][1]} `;
+            row += `L${points[1][0]},${points[1][1]} `;
+            row += `M${points[1][0]},${points[1][1]} `;
+            row += `L${points[1][0] - arrowSize * Math.cos(angle - Math.PI/6)},${points[1][1] - arrowSize * Math.sin(angle - Math.PI/6)} `;
+            row += `M${points[1][0]},${points[1][1]} `;
+            row += `L${points[1][0] - arrowSize * Math.cos(angle + Math.PI/6)},${points[1][1] - arrowSize * Math.sin(angle + Math.PI/6)}"`;
+            row += `${transAttribute}/>`;
         }
         
         return row;
